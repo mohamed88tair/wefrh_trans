@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage-professional";
+import { storage } from "./storage-database";
 import { logger, logError, logSuccess, logWarning, logInfo, logAIUsage, apiLoggingMiddleware } from "./logger";
 import { aiCostTracker, AI_MODEL_PRICING } from "@shared/ai-cost-tracker";
 import { 
