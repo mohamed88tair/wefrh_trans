@@ -1,0 +1,1908 @@
+import { useState, useMemo, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Progress } from '@/components/ui/progress';
+import { Card, CardContent } from '@/components/ui/card';
+import { useToast } from '@/hooks/use-toast';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { cleanText, translateWithDictionary, needsTranslation, createDeliveryPrompt } from '@/lib/smart-translator';
+import { translationOptimizer } from '@/lib/translation-optimizer';
+import { performanceMonitor } from '@/lib/performance-monitor';
+
+// Multiple Translations Component
+interface MultipleTranslationsDropdownProps {
+  item: any;
+  selectedProvider: string;
+  selectedModel: string;
+  multipleTranslationModel?: string;
+  onSelectTranslation: (translation: string) => void;
+}
+
+function MultipleTranslationsDropdown({ item, selectedProvider, selectedModel, multipleTranslationModel = 'gpt-4o', onSelectTranslation }: MultipleTranslationsDropdownProps) {
+  const [translations, setTranslations] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isMounted, setIsMounted] = useState(true);
+  const { toast } = useToast();
+
+  // Cleanup on unmount and suppress ResizeObserver errors
+  useEffect(() => {
+    // Suppress ResizeObserver errors
+    const resizeObserverErrorHandler = (e: ErrorEvent) => {
+      if (e.message === 'ResizeObserver loop completed with undelivered notifications.') {
+        e.stopImmediatePropagation();
+      }
+    };
+    window.addEventListener('error', resizeObserverErrorHandler);
+    
+    return () => {
+      setIsMounted(false);
+      window.removeEventListener('error', resizeObserverErrorHandler);
+    };
+  }, []);
+
+  const generateTranslations = async () => {
+    setIsLoading(true);
+    try {
+      const variations: string[] = [];
+      
+      // Get provider and model info
+      const provider = selectedProvider || 'gemini';
+      const model = selectedModel || 'gemini-1.5-flash';
+      // Create varied translation prompts to get different results
+      const prompts = [
+        `${item.cleanedText}`,
+        `Translate to formal Arabic: ${item.cleanedText}`,
+        `Business Arabic for: ${item.cleanedText}`,
+        `Technical term in Arabic: ${item.cleanedText}`,
+        `Professional Arabic translation: ${item.cleanedText}`,
+        `Modern Arabic equivalent: ${item.cleanedText}`,
+        `Administrative Arabic term: ${item.cleanedText}`
+      ];
+
+      for (const prompt of prompts) {
+        try {
+          const response = await fetch('/api/translate-text', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: prompt,
+              provider: provider,
+              model: multipleTranslationModel
+            })
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            let translation = result.translatedText?.trim();
+            
+            if (translation) {
+              // Clean the translation response
+              translation = translation.replace(/\n/g, ' ').trim();
+              
+              // Extract the last meaningful Arabic phrase (usually the actual translation)
+              let cleanTranslation = '';
+              
+              // Split by colons and get the last Arabic part
+              const colonParts = translation.split(':');
+              if (colonParts.length > 1) {
+                // Get the last part after colon
+                const lastPart = colonParts[colonParts.length - 1].trim();
+                if (/[\u0600-\u06FF]/.test(lastPart)) {
+                  cleanTranslation = lastPart;
+                }
+              }
+              
+              // If no colon split worked, try to find pure Arabic words
+              if (!cleanTranslation) {
+                // Match Arabic words/phrases
+                const arabicMatches = translation.match(/[\u0600-\u06FF\s]+/g);
+                if (arabicMatches) {
+                  // Find the longest meaningful Arabic text
+                  for (const match of arabicMatches) {
+                    const trimmed = match.trim();
+                    // Skip instruction phrases
+                    if (trimmed && 
+                        !trimmed.includes('ترجم') && 
+                        !trimmed.includes('العربية') && 
+                        !trimmed.includes('مصطلح') && 
+                        !trimmed.includes('احترافية') &&
+                        trimmed.length > 2) {
+                      cleanTranslation = trimmed;
+                      break;
+                    }
+                  }
+                }
+              }
+              
+              // Final cleanup
+              if (cleanTranslation) {
+                cleanTranslation = cleanTranslation.replace(/\([^)]*\)/g, '').trim();
+                cleanTranslation = cleanTranslation.replace(/["'"]/g, '').trim();
+                cleanTranslation = cleanTranslation.replace(/\.$/, '').trim();
+                
+                if (cleanTranslation && cleanTranslation.length > 1 && !variations.includes(cleanTranslation)) {
+                  variations.push(cleanTranslation);
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Translation error:', error);
+        }
+        
+        // Small delay between requests
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // If we have enough variations, break early
+        if (variations.length >= 5) break;
+      }
+      
+      // If we don't have enough variations, try additional prompts
+      if (variations.length < 5) {
+        const additionalPrompts = [
+          `Give me the Arabic word for: ${item.cleanedText}`,
+          `What do you call "${item.cleanedText}" in Arabic?`,
+          `${item.cleanedText} → Arabic word:`,
+        ];
+        
+        for (const prompt of additionalPrompts) {
+          if (variations.length >= 5) break;
+          
+          try {
+            const response = await fetch('/api/translate-text', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                text: prompt,
+                provider: selectedProvider,
+                model: multipleTranslationModel
+              })
+            });
+            
+            if (response.ok) {
+              const result = await response.json();
+              let translation = result.translatedText?.trim();
+              
+              if (translation) {
+                // Apply same cleaning logic
+                translation = translation.replace(/\n/g, ' ').trim();
+                const parts = translation.split(/[:|→،]/);
+                let cleanTranslation = '';
+                
+                for (const part of parts) {
+                  const trimmed = part.trim();
+                  if (/[\u0600-\u06FF]/.test(trimmed)) {
+                    let cleaned = trimmed.replace(/\([^)]*\)/g, '').trim();
+                    cleaned = cleaned.replace(/^(ترجم|ترجمة|الترجمة|يجب أن تُترجم|يعني|تعني|هو|هي|كـ|يجب أن يترجم|Give me|What do you call|Arabic word)[\s:]*/,'');
+                    cleaned = cleaned.replace(/["'"]/g, '').trim();
+                    cleaned = cleaned.replace(/\.$/, '');
+                    
+                    if (cleaned && cleaned.length > 0 && cleaned !== item.cleanedText && !variations.includes(cleaned)) {
+                      cleanTranslation = cleaned;
+                      break;
+                    }
+                  }
+                }
+                
+                if (cleanTranslation) {
+                  variations.push(cleanTranslation);
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Additional translation error:', error);
+          }
+          
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      }
+      
+      console.log('Generated translations:', variations);
+      
+      // Safe state update with component mount check
+      if (isMounted) {
+        try {
+          setTranslations(variations.slice(0, 5)); // Limit to 5 options
+          
+          if (variations.length === 0) {
+            toast({
+              title: "لم يتم العثور على ترجمات",
+              description: "حاول مرة أخرى أو استخدم الترجمة العادية",
+              variant: "destructive",
+            });
+          }
+        } catch (stateError) {
+          console.error('State update error:', stateError);
+        }
+      }
+    } catch (error) {
+      console.error('Error generating translations:', error);
+      if (isMounted) {
+        try {
+          toast({
+            title: "خطأ في الترجمة",
+            description: "فشل في الحصول على ترجمات متعددة",
+            variant: "destructive",
+          });
+        } catch (toastError) {
+          console.error('Toast error:', toastError);
+        }
+      }
+    } finally {
+      if (isMounted) {
+        try {
+          setIsLoading(false);
+        } catch (stateError) {
+          console.error('Final state update error:', stateError);
+        }
+      }
+    }
+  };
+
+  return (
+    <DropdownMenu onOpenChange={(open) => {
+      if (open && translations.length === 0 && !isLoading && isMounted) {
+        try {
+          generateTranslations();
+        } catch (error) {
+          console.error('Failed to generate translations:', error);
+        }
+      }
+    }}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          title="ترجمات متعددة"
+          className="h-8 px-2"
+        >
+          <i className="fas fa-clone text-sm"></i>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-80" align="start">
+        <DropdownMenuLabel>اختر الترجمة المناسبة</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {isLoading ? (
+          <div className="p-4 text-center text-sm text-gray-500">
+            جارٍ الحصول على ترجمات متعددة...
+          </div>
+        ) : translations.length > 0 ? (
+          translations.map((translation, index) => (
+            <DropdownMenuItem
+              key={index}
+              className="cursor-pointer p-3 border-b last:border-b-0"
+              onClick={() => onSelectTranslation(translation)}
+            >
+              <div className="text-right w-full">
+                <div className="text-sm font-medium text-gray-700">
+                  خيار {index + 1}
+                </div>
+                <div className="text-base text-gray-900 mt-1">
+                  {translation}
+                </div>
+              </div>
+            </DropdownMenuItem>
+          ))
+        ) : (
+          <div className="p-4 text-center text-sm text-gray-500">
+            لا توجد ترجمات متاحة
+          </div>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+// TypeScript declaration for translation control
+declare global {
+  interface Window {
+    translationControl?: {
+      active: boolean;
+      paused: boolean;
+    };
+  }
+}
+
+interface TranslationTableProps {
+  projectId: number;
+  onUpdateItem: (id: number, updates: any) => void;
+  apiSettings?: any[];
+  selectedProvider?: string;
+  selectedModel?: string;
+  multipleTranslationModel?: string;
+}
+
+type FilterType = 'all' | 'needs_translation' | 'translated' | 'no_translation_needed';
+
+interface TranslationItem {
+  id: number;
+  key: string;
+  originalText: string;
+  translatedText: string | null;
+  status: string;
+}
+
+export default function FinalTranslationTable({
+  projectId,
+  onUpdateItem,
+  apiSettings = [],
+  selectedProvider = 'gemini',
+  selectedModel = 'gemini-2.5-flash',
+  multipleTranslationModel = 'gpt-4o'
+}: TranslationTableProps) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  // Fetch global settings to get suggested models
+  const { data: globalSettings = [] } = useQuery<any[]>({
+    queryKey: ['/api/global-settings'],
+  });
+  
+  const [page, setPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filter, setFilter] = useState<FilterType>('all');
+  const [selectedItems, setSelectedItems] = useState<number[]>([]);
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [translationProgress, setTranslationProgress] = useState({ current: 0, total: 0 });
+  const [localTranslations, setLocalTranslations] = useState<Record<number, string>>({});
+  const [pageInputValue, setPageInputValue] = useState('');
+  
+  // Column widths state
+  const [columnWidths, setColumnWidths] = useState({
+    id: 80,
+    key: 200,
+    original: 250,
+    translated: 250,
+    status: 120,
+    actions: 120
+  });
+
+  // Column resize handler
+  const handleColumnResize = (column: string, newWidth: number) => {
+    setColumnWidths(prev => ({
+      ...prev,
+      [column]: Math.max(50, newWidth) // Minimum width of 50px
+    }));
+  };
+
+  // Control functions for external event handlers
+  const pauseTranslation = () => {
+    setIsPaused(true);
+    // Also update any active translation loop
+    if (window.translationControl) {
+      window.translationControl.paused = true;
+    }
+  };
+  const resumeTranslation = () => {
+    setIsPaused(false);
+    // Also update any active translation loop
+    if (window.translationControl) {
+      window.translationControl.paused = false;
+    }
+  };
+  const stopTranslation = () => {
+    setIsTranslating(false);
+    setIsPaused(false);
+    setTranslationProgress({ current: 0, total: 0 });
+    // Stop any active translation loop
+    if (window.translationControl) {
+      window.translationControl.active = false;
+    }
+  };
+
+  // Page navigation functions
+  const goToPage = (pageNumber: number) => {
+    if (pageNumber >= 1 && pageNumber <= totalPages) {
+      setPage(pageNumber);
+      setPageInputValue('');
+    }
+  };
+
+  const handlePageInputSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const pageNum = parseInt(pageInputValue);
+    if (!isNaN(pageNum)) {
+      goToPage(pageNum);
+    }
+  };
+
+  // Pagination component
+  const PaginationControls = () => (
+    <div className="flex justify-between items-center">
+      <div className="text-sm text-gray-600">
+        عرض {Math.min((page - 1) * itemsPerPage + 1, filteredItems.length)}-{Math.min(page * itemsPerPage, filteredItems.length)} من أصل {filteredItems.length} عنصر
+      </div>
+      
+      <div className="flex items-center space-x-3 space-x-reverse">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setPage(p => Math.max(1, p - 1))}
+          disabled={page === 1}
+        >
+          السابق
+        </Button>
+        
+        <form onSubmit={handlePageInputSubmit} className="flex items-center space-x-2 space-x-reverse">
+          <span className="text-sm text-gray-600">صفحة</span>
+          <Input
+            type="number"
+            min="1"
+            max={totalPages}
+            value={pageInputValue}
+            onChange={(e) => setPageInputValue(e.target.value)}
+            placeholder={page.toString()}
+            className="w-16 h-8 text-center text-sm"
+          />
+          <span className="text-sm text-gray-600">من {totalPages}</span>
+          <Button type="submit" size="sm" variant="ghost" className="h-8 px-2">
+            اذهب
+          </Button>
+        </form>
+        
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+          disabled={page >= totalPages}
+        >
+          التالي
+        </Button>
+      </div>
+    </div>
+  );
+
+
+
+  // Resize handle component
+  const ResizeHandle = ({ column }: { column: string }) => {
+    const handleMouseDown = (e: React.MouseEvent) => {
+      e.preventDefault();
+      const startX = e.clientX;
+      const startWidth = columnWidths[column as keyof typeof columnWidths];
+
+      const handleMouseMove = (e: MouseEvent) => {
+        const newWidth = startWidth + (e.clientX - startX);
+        handleColumnResize(column, newWidth);
+      };
+
+      const handleMouseUp = () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    };
+
+    return (
+      <div
+        className="absolute right-0 top-0 w-1 h-full bg-gray-300 hover:bg-blue-500 cursor-col-resize opacity-0 hover:opacity-100 transition-opacity"
+        onMouseDown={handleMouseDown}
+      />
+    );
+  };
+
+  // Listen for external control events
+  useEffect(() => {
+    const handleStartBatch = () => handleBatchTranslation();
+    const handleStartSelected = () => {
+      if (selectedItems.length > 0) {
+        handleBatchTranslation();
+      } else {
+        toast({
+          title: "لا توجد عناصر محددة",
+          description: "يرجى تحديد عناصر للترجمة أولاً",
+          variant: "destructive",
+        });
+      }
+    };
+    const handlePause = () => setIsPaused(true);
+    const handleResume = () => setIsPaused(false);
+    const handleStop = () => {
+      setIsTranslating(false);
+      setIsPaused(false);
+      setTranslationProgress({ current: 0, total: 0 });
+    };
+
+    window.addEventListener('startBatchTranslation', handleStartBatch);
+    window.addEventListener('startSelectedTranslation', handleStartSelected);
+    window.addEventListener('pauseTranslation', handlePause);
+    window.addEventListener('resumeTranslation', handleResume);
+    window.addEventListener('stopTranslation', handleStop);
+
+    return () => {
+      window.removeEventListener('startBatchTranslation', handleStartBatch);
+      window.removeEventListener('startSelectedTranslation', handleStartSelected);
+      window.removeEventListener('pauseTranslation', handlePause);
+      window.removeEventListener('resumeTranslation', handleResume);
+      window.removeEventListener('stopTranslation', handleStop);
+    };
+  }, [selectedItems, isTranslating, isPaused]);
+
+  const itemsPerPage = 500;
+
+  // Fetch data with proper key alignment and performance optimization
+  const { data: items = [], isLoading, refetch } = useQuery({
+    queryKey: ['/api/projects', projectId, 'items'],
+    queryFn: async () => {
+      const response = await fetch(`/api/projects/${projectId}/items`);
+      if (!response.ok) throw new Error('فشل في تحميل البيانات');
+      const data = await response.json();
+      console.log(`Fetched ${data.length} items from server`);
+      return data;
+    },
+    enabled: !!projectId,
+    staleTime: 1000 * 60 * 10, // 10 minutes to reduce frequent refetches
+    gcTime: 1000 * 60 * 15, // Keep in cache for 15 minutes
+    refetchOnWindowFocus: false, // Disable refetch on focus
+  });
+
+  // Update item mutation with project progress update
+  const updateItemMutation = useMutation({
+    mutationFn: async ({ id, updates }: { id: number; updates: any }) => {
+      const response = await fetch(`/api/items/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (!response.ok) throw new Error('فشل في التحديث');
+      
+      // Update project progress after item update
+      await fetch(`/api/projects/${projectId}/progress`, {
+        method: 'PUT',
+      });
+      
+      // Refresh projects list to show updated progress
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      // Refresh items to show updated data
+      refetch();
+    }
+  });
+
+  // Debug data state
+  console.log('Component state - items:', items?.length, 'isLoading:', isLoading, 'projectId:', projectId);
+
+  // Process items
+  const processedItems = useMemo(() => {
+    if (!items || items.length === 0) {
+      console.log('processedItems: No items to process');
+      return [];
+    }
+    
+    console.log(`Processing ${items.length} items`);
+    return items.map((item: TranslationItem) => {
+      const cleaned = cleanText(item.originalText);
+      const needsTranslate = needsTranslation(item.originalText);
+      
+      return {
+        ...item,
+        cleanedText: cleaned,
+        needsTranslate,
+      };
+    });
+  }, [items]);
+
+  // Filter items
+  const filteredItems = useMemo(() => {
+    let filtered = processedItems;
+
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((item: any) =>
+        item.key?.toLowerCase().includes(query) ||
+        item.originalText?.toLowerCase().includes(query) ||
+        item.translatedText?.toLowerCase().includes(query) ||
+        item.cleanedText?.toLowerCase().includes(query)
+      );
+    }
+
+    switch (filter) {
+      case 'needs_translation':
+        filtered = filtered.filter((item: any) => item.needsTranslate && !item.translatedText);
+        break;
+      case 'translated':
+        filtered = filtered.filter((item: any) => item.translatedText && item.translatedText.trim());
+        break;
+      case 'no_translation_needed':
+        filtered = filtered.filter((item: any) => !item.needsTranslate);
+        break;
+    }
+
+    return filtered;
+  }, [processedItems, searchQuery, filter]);
+
+  // Paginate
+  const paginatedItems = useMemo(() => {
+    const startIndex = (page - 1) * itemsPerPage;
+    return filteredItems.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredItems, page]);
+
+  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+
+  // Statistics based on actual status displayed in status column
+  const stats = useMemo(() => {
+    const total = processedItems.length;
+    
+    // Count by actual status shown in the status column
+    const untranslated = processedItems.filter((item: any) => 
+      item.needsTranslate && !item.translatedText?.trim()
+    ).length; // "غير مترجم" status
+    
+    const translated = processedItems.filter((item: any) => 
+      item.needsTranslate && item.translatedText?.trim()
+    ).length; // "مترجم" status
+    
+    const noTranslationNeeded = processedItems.filter((item: any) => 
+      !item.needsTranslate
+    ).length; // "لا يحتاج" status
+    
+    const needsTranslation = untranslated; // Only count untranslated items as "needs translation"
+    const totalTranslatable = translated + untranslated; // Total items that can be translated
+    const progress = totalTranslatable > 0 ? Math.round((translated / totalTranslatable) * 100) : 0;
+
+    return {
+      total,
+      needsTranslation: untranslated, // This should match "غير مترجم" count
+      translated,
+      noTranslationNeeded,
+      progress,
+      remaining: untranslated
+    };
+  }, [processedItems]);
+
+  // Handle update - simplified to avoid multiple calls
+  const handleUpdateItem = async (id: number, updates: any) => {
+    try {
+      // Update locally first for immediate UI response
+      onUpdateItem(id, updates);
+      
+      // Save to server in background without waiting
+      updateItemMutation.mutate({ id, updates });
+      
+    } catch (error) {
+      console.error('Update failed:', error);
+      toast({
+        title: "خطأ في التحديث",
+        description: "فشل في حفظ التغييرات",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // AI Translation - force batch processing
+  const performAITranslation = async (texts: string[]): Promise<string[]> => {
+    const activeSettings = apiSettings.find((s: any) => s.provider === selectedProvider);
+    if (!activeSettings?.apiKey) {
+      throw new Error('مفتاح API غير متوفر. يرجى إدخال مفتاح API في الإعدادات');
+    }
+
+    // Force batch translation with Gemini only
+    if (selectedProvider === 'gemini' && texts.length > 1) {
+      try {
+        const batchData: Record<string, string> = {};
+        texts.forEach((text, index) => {
+          batchData[`item_${index}`] = text;
+        });
+
+        console.log(`🚀 Using batch translation for ${texts.length} items with ${selectedProvider}/${selectedModel}`);
+        
+        const response = await fetch('/api/translate-batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            batchData,
+            provider: selectedProvider,
+            model: selectedModel,
+          }),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          const translations = result.translations || {};
+          
+          // Extract translations in order
+          const orderedTranslations: string[] = [];
+          for (let i = 0; i < texts.length; i++) {
+            orderedTranslations.push(translations[`item_${i}`] || '');
+          }
+          
+          console.log(`✅ Batch translation successful: ${orderedTranslations.filter(t => t).length}/${texts.length} items translated`);
+          return orderedTranslations;
+        } else {
+          console.log(`❌ Batch translation failed, falling back to individual translation`);
+        }
+      } catch (error) {
+        console.error('Batch translation error:', error);
+      }
+    }
+
+    // Fallback to individual translation
+    const translations: string[] = [];
+    
+    for (const text of texts) {
+      try {
+        const response = await fetch('/api/translate-text', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: text,
+            provider: selectedProvider,
+            model: selectedModel,
+          }),
+        });
+
+        if (!response.ok) {
+          console.error(`فشل في ترجمة: ${text}`);
+          translations.push('');
+          continue;
+        }
+        
+        const result = await response.json();
+        translations.push(result.translatedText || '');
+      } catch (error) {
+        console.error(`خطأ في ترجمة: ${text}`, error);
+        translations.push('');
+      }
+    }
+    
+    return translations;
+  };
+
+  // Simplified and reliable batch translation
+  const handleBatchTranslation = async () => {
+    console.log('🚀 بدء الترجمة المجمعة المبسطة');
+    
+    const allItems = items || [];
+    if (allItems.length === 0) {
+      toast({
+        title: "خطأ",
+        description: "لا توجد عناصر للترجمة",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Find items that need translation - simplified logic
+    const itemsToTranslate = allItems.filter((item: any) => {
+      if (!item.originalText || typeof item.originalText !== 'string') return false;
+      
+      const cleaned = cleanText(item.originalText);
+      const hasTranslation = item.translatedText && item.translatedText.trim() !== '';
+      const hasEnglish = /[a-zA-Z]/.test(cleaned);
+      
+      return hasEnglish && !hasTranslation && cleaned.length > 1;
+    });
+
+    console.log(`📊 العثور على ${itemsToTranslate.length} عنصر يحتاج ترجمة من أصل ${allItems.length}`);
+
+    if (itemsToTranslate.length === 0) {
+      toast({
+        title: "لا توجد عناصر للترجمة",
+        description: "جميع العناصر مترجمة بالفعل",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsTranslating(true);
+    setIsPaused(false);
+    setTranslationProgress({ current: 0, total: itemsToTranslate.length });
+
+    window.translationControl = { active: true, paused: false };
+
+    // Use moderate batch size for reliability
+    const BATCH_SIZE = 50; // Conservative batch size
+    const batchProvider = selectedProvider || 'gemini';
+    const batchModel = selectedModel || 'gemini-1.5-pro';
+
+    // Create batches
+    const batches = [];
+    for (let i = 0; i < itemsToTranslate.length; i += BATCH_SIZE) {
+      batches.push(itemsToTranslate.slice(i, i + BATCH_SIZE));
+    }
+
+    console.log(`📦 تقسيم إلى ${batches.length} دفعة بحجم ${BATCH_SIZE} عنصر`);
+
+    let completed = 0;
+    let successfulBatches = 0;
+
+    // Dynamic batch size adjustment based on performance
+    const adjustBatchSize = (currentSize: number, responseTime: number, successRate: number) => {
+      // If response time is too high (>15 seconds) or low success rate (<80%), reduce batch size
+      if (responseTime > 15000 || successRate < 0.8) {
+        return Math.max(100, Math.floor(currentSize * 0.7));
+      }
+      // If response time is fast (<5 seconds) and high success rate (>95%), increase batch size
+      if (responseTime < 5000 && successRate > 0.95) {
+        return Math.min(200, Math.floor(currentSize * 1.2));
+      }
+      return currentSize;
+    };
+
+    // Enhanced delay management using model-specific configurations
+    const getOptimalDelay = (provider: string, model: string, batchSize: number) => {
+      // Use enhanced Gemini model configuration for intelligent delays
+      if (provider === 'gemini') {
+        const geminiConfig = getGeminiModelConfig(model);
+        // Scale delay based on batch size relative to optimal size
+        const scaleFactor = Math.max(0.8, batchSize / geminiConfig.batchSize);
+        return Math.round(geminiConfig.delayBetweenBatches * scaleFactor);
+      }
+      
+      const baseDelays = {
+        gemini: {
+          'gemini-1.5-flash': 1500,     // Updated for larger batches
+          'gemini-1.5-flash-8b': 1200,   
+          'gemini-1.5-pro': 3000,       // Pro model needs more time
+          'gemini-2.0-flash-exp': 2500,
+          'default': 2000
+        },
+        openai: {
+          'gpt-4o': 3000,              // Premium model, longer delay
+          'gpt-4o-mini': 1500,         // Mini version, moderate delay
+          'gpt-4-turbo': 3500,         // Complex model, long delay
+          'gpt-3.5-turbo': 1000,       // Efficient model, short delay
+          'default': 2000
+        },
+        anthropic: {
+          'claude-3-5-sonnet-20241022': 2000,
+          'claude-3-5-haiku-20241022': 1200,
+          'claude-3-opus-20240229': 4000,
+          'default': 2500
+        },
+        xai: {
+          'grok-2-1212': 1800,
+          'grok-2-vision-1212': 2500,
+          'grok-beta': 1500,
+          'default': 2000
+        },
+        deepseek: {
+          'deepseek-chat': 1200,
+          'deepseek-coder': 1500,
+          'default': 1300
+        }
+      };
+
+      const providerDelays = baseDelays[provider as keyof typeof baseDelays];
+      if (!providerDelays) return 1500;
+      
+      const baseDelay = providerDelays[model as keyof typeof providerDelays] || providerDelays.default;
+      
+      // Scale delay based on batch size - larger batches need longer delays
+      const scaleFactor = Math.max(1, batchSize / 15);
+      return Math.round(baseDelay * scaleFactor);
+    };
+    const batches = [];
+    
+    // Sort items by ID to ensure sequential processing from 1 to the bottom
+    const sortedItems = [...itemsToTranslate].sort((a, b) => a.id - b.id);
+    
+    for (let i = 0; i < sortedItems.length; i += BATCH_SIZE) {
+      const batch = sortedItems.slice(i, i + BATCH_SIZE);
+      batches.push({
+        items: batch,
+        batchNumber: Math.floor(i / BATCH_SIZE) + 1,
+        startId: batch[0]?.id,
+        endId: batch[batch.length - 1]?.id
+      });
+    }
+
+    console.log(`🎯 معالجة ${sortedItems.length} عنصر في ${batches.length} دفعة بحجم ${BATCH_SIZE} عنصر لكل دفعة`);
+    console.log(`📋 ترقيم الدفعات من 1 إلى ${batches.length}:`, 
+      batches.map(b => `دفعة ${b.batchNumber}: عناصر ${b.startId}-${b.endId}`));
+
+    try {
+      let completed = 0;
+
+      for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+        const batchInfo = batches[batchIndex];
+        const batch = batchInfo.items;
+        
+        // Check if paused
+        while (window.translationControl?.paused) {
+          console.log('⏸️ الترجمة متوقفة مؤقتاً، انتظار...');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          if (!window.translationControl?.active) {
+            console.log('🛑 تم إيقاف الترجمة أثناء التوقف المؤقت');
+            return;
+          }
+        }
+        
+        // Check if stopped
+        if (!window.translationControl?.active) {
+          console.log('🛑 تم إيقاف الترجمة بواسطة المستخدم');
+          break;
+        }
+
+        console.log(`🔄 معالجة الدفعة ${batchInfo.batchNumber}/${batches.length} (عناصر ${batchInfo.startId}-${batchInfo.endId}) - ${batch.length} عنصر`);
+
+        // Prepare batch data for AI model
+        const batchData: Record<string, string> = {};
+        batch.forEach((item: any) => {
+          batchData[`item_${item.id}`] = item.cleanedText;
+        });
+
+        // Process batch with error handling
+        try {
+          const batchStartTime = Date.now();
+          
+          // Log detailed request information
+          console.log(`🚀 إرسال الدفعة ${batchInfo.batchNumber}/${batches.length}:`);
+          console.log(`📊 المزود: ${batchProvider}, النموذج: ${batchModel}`);
+          console.log(`📝 النصوص المرسلة (${batch.length} عنصر):`, 
+            Object.entries(batchData).map(([key, text]) => `${key}: "${text}"`).join('\n  ')
+          );
+          console.log(`⏰ وقت الإرسال: ${new Date().toLocaleTimeString()}`);
+          
+          const requestStartTime = performance.now();
+
+          // Add timeout controller for API requests - increased timeout for large batches
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes timeout for large batches
+          
+          const response = await fetch('/api/translate-batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              batchData,
+              provider: batchProvider,
+              model: batchModel,
+            }),
+            signal: controller.signal,
+          });
+          
+          clearTimeout(timeoutId);
+
+          const requestEndTime = performance.now();
+          const responseTime = Math.round(requestEndTime - requestStartTime);
+
+          if (response.ok) {
+            const result = await response.json();
+            const translations = result.translations || {};
+
+            // Log detailed response information
+            console.log(`✅ استجابة الدفعة ${batchInfo.batchNumber}:`);
+            console.log(`⏱️ وقت الاستجابة: ${responseTime}ms`);
+            console.log(`🔤 الاستجابة الكاملة من النموذج:`, result.rawResponse || 'غير متوفر');
+            console.log(`📊 إحصائيات الاستخدام:`, {
+              inputTokens: result.usage?.inputTokens || 0,
+              outputTokens: result.usage?.outputTokens || 0,
+              totalTokens: result.usage?.totalTokens || 0,
+              inputCost: result.usage?.inputCost || 0,
+              outputCost: result.usage?.outputCost || 0,
+              totalCost: result.usage?.totalCost || 0
+            });
+            console.log(`🌐 الترجمات المستخرجة (${Object.keys(translations).length} عنصر):`, 
+              Object.entries(translations).map(([key, translation]) => 
+                `${key}: "${translation}"`
+              ).join('\n  ')
+            );
+
+            // Track successful translations and failed ones
+            let successCount = 0;
+            let failedItems = [];
+
+            // Process each translation in the batch
+            for (const item of batch) {
+              const translation = translations[`item_${item.id}`];
+              
+              if (translation && translation.trim()) {
+                // Update local state immediately
+                setLocalTranslations(prev => ({
+                  ...prev,
+                  [item.id]: translation
+                }));
+                
+                // Update query cache
+                queryClient.setQueryData(['/api/projects', projectId, 'items'], (oldData: any) => {
+                  if (!oldData) return oldData;
+                  return oldData.map((oldItem: any) => 
+                    oldItem.id === item.id 
+                      ? { ...oldItem, translatedText: translation, status: 'translated' }
+                      : oldItem
+                  );
+                });
+                
+                // Save to server
+                updateItemMutation.mutate({ 
+                  id: item.id, 
+                  updates: {
+                    translatedText: translation.trim(),
+                    status: 'translated'
+                  }
+                });
+                
+                successCount++;
+                console.log(`✅ نجحت ترجمة العنصر ${item.id}: "${item.cleanedText}" → "${translation}"`);
+              } else {
+                failedItems.push({ id: item.id, text: item.cleanedText });
+                console.log(`❌ فشلت ترجمة العنصر ${item.id}: "${item.cleanedText}"`);
+              }
+              
+              // Don't increment completed here - it's handled after all items in batch are processed
+            }
+
+            // Update completion tracking after processing entire batch
+            completed += successCount; // Add successful translations to completed count
+            setTranslationProgress({ 
+              current: completed, 
+              total: itemsToTranslate.length 
+            });
+
+            // Calculate performance metrics
+            const batchEndTime = Date.now();
+            const batchDuration = batchEndTime - batchStartTime;
+            const successRate = successCount / batch.length;
+            
+            // Log batch summary with performance metrics
+            console.log(`📈 ملخص الدفعة ${batchInfo.batchNumber}:`);
+            console.log(`✅ نجح: ${successCount}/${batch.length} (${(successRate * 100).toFixed(1)}%)`);
+            console.log(`⏱️ مدة المعالجة: ${batchDuration}ms`);
+            console.log(`🏃 سرعة المعالجة: ${(batch.length / (batchDuration / 1000)).toFixed(2)} عنصر/ثانية`);
+            console.log(`📊 التقدم الإجمالي: ${completed}/${itemsToTranslate.length} (${((completed/itemsToTranslate.length)*100).toFixed(1)}%)`);
+            if (failedItems.length > 0) {
+              console.log(`❌ فشل: ${failedItems.length}/${batch.length}`);
+              console.log(`📝 العناصر الفاشلة:`, failedItems);
+            }
+            
+            // Dynamic batch size adjustment for next batches
+            if (batchIndex < batches.length - 2) { // Only adjust if there are more batches after next
+              const newBatchSize = adjustBatchSize(BATCH_SIZE, batchDuration, successRate);
+              if (newBatchSize !== BATCH_SIZE) {
+                console.log(`🔄 تعديل حجم الدفعة: ${BATCH_SIZE} → ${newBatchSize} بناءً على الأداء`);
+                BATCH_SIZE = newBatchSize;
+              }
+            }
+
+          } else {
+            console.error(`فشلت ترجمة الدفعة ${batchInfo.batchNumber}, status:`, response.status);
+            
+            // Always use smaller batch size when large batch fails - don't fallback to individual
+            console.log(`🔄 تقسيم الدفعة ${batchInfo.batchNumber} إلى دفعات أصغر (5 عناصر لكل دفعة)`);
+            const smallerBatches = [];
+            for (let i = 0; i < batch.length; i += 5) {
+              smallerBatches.push(batch.slice(i, i + 5));
+            }
+            
+            for (const smallBatch of smallerBatches) {
+              const smallBatchData: Record<string, string> = {};
+              smallBatch.forEach((item: any) => {
+                smallBatchData[`item_${item.id}`] = item.cleanedText;
+              });
+              
+              try {
+                const smallResponse = await fetch('/api/translate-batch', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    batchData: smallBatchData,
+                    provider: batchProvider,
+                    model: batchModel,
+                  }),
+                });
+                
+                if (smallResponse.ok) {
+                  const smallResult = await smallResponse.json();
+                  const smallTranslations = smallResult.translations || {};
+                  
+                  for (const item of smallBatch) {
+                    const translation = smallTranslations[`item_${item.id}`];
+                    if (translation) {
+                      await onUpdateItem(item.id, {
+                        translatedText: translation,
+                        status: 'translated',
+                        translationType: 'ai-batch'
+                      });
+                      console.log(`✅ نجحت ترجمة العنصر ${item.id} في دفعة صغيرة (5 عناصر)`);
+                    }
+                    completed++;
+                    setTranslationProgress({ current: completed, total: itemsToTranslate.length });
+                  }
+                } else {
+                  // Try even smaller batches (2 items)
+                  for (const item of smallBatch) {
+                    const singleBatchData = { [`item_${item.id}`]: item.cleanedText };
+                    
+                    try {
+                      const singleResponse = await fetch('/api/translate-batch', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          batchData: singleBatchData,
+                          provider: batchProvider,
+                          model: batchModel,
+                        }),
+                      });
+                      
+                      if (singleResponse.ok) {
+                        const singleResult = await singleResponse.json();
+                        const translation = singleResult.translations[`item_${item.id}`];
+                        if (translation) {
+                          await onUpdateItem(item.id, {
+                            translatedText: translation,
+                            status: 'translated',
+                            translationType: 'ai-batch'
+                          });
+                          console.log(`✅ نجحت ترجمة العنصر ${item.id} في دفعة وحيدة`);
+                        }
+                      }
+                    } catch (error) {
+                      console.error(`فشل في ترجمة العنصر ${item.id}:`, error);
+                    }
+                    
+                    completed++;
+                    setTranslationProgress({ current: completed, total: itemsToTranslate.length });
+                  }
+                }
+              } catch (error) {
+                console.error(`خطأ في الدفعة الصغيرة:`, error);
+                // Process each item individually using batch API
+                for (const item of smallBatch) {
+                  const singleBatchData = { [`item_${item.id}`]: item.cleanedText };
+                  
+                  try {
+                    const singleResponse = await fetch('/api/translate-batch', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        batchData: singleBatchData,
+                        provider: batchProvider,
+                        model: batchModel,
+                      }),
+                    });
+                    
+                    if (singleResponse.ok) {
+                      const singleResult = await singleResponse.json();
+                      const translation = singleResult.translations[`item_${item.id}`];
+                      if (translation) {
+                        await onUpdateItem(item.id, {
+                          translatedText: translation,
+                          status: 'translated',
+                          translationType: 'ai-batch'
+                        });
+                        console.log(`✅ نجحت ترجمة العنصر ${item.id} عبر API دفعي وحيد`);
+                      }
+                    }
+                  } catch (error) {
+                    console.error(`فشل في ترجمة العنصر ${item.id} نهائياً:`, error);
+                  }
+                  
+                  completed++;
+                  setTranslationProgress({ current: completed, total: itemsToTranslate.length });
+                }
+              }
+            }
+          }
+        } catch (error: any) {
+          console.error(`خطأ في ترجمة الدفعة ${batchInfo.batchNumber}:`, error);
+          
+          // Enhanced error handling for Gemini 1.5 Pro rate limits and quota issues
+          let shouldRetryWithDelay = false;
+          let retryDelay = 5000; // Default 5 seconds
+          
+          if (error.name === 'AbortError') {
+            console.log(`⏰ انتهت مهلة الدفعة ${batchInfo.batchNumber} - تقليل حجم الدفعة`);
+            // Reduce batch size for subsequent batches
+            BATCH_SIZE = Math.max(25, Math.floor(BATCH_SIZE * 0.7));
+            console.log(`📉 تقليل حجم الدفعة إلى ${BATCH_SIZE} عنصر`);
+          } else if (error.message?.includes('429') || error.message?.includes('rate limit')) {
+            console.log(`🚫 حد معدل الطلبات - تأخير إضافي للنموذج ${batchModel}`);
+            shouldRetryWithDelay = true;
+            retryDelay = batchModel === 'gemini-1.5-pro' ? 15000 : 8000; // Longer delay for Pro model
+          } else if (error.message?.includes('quota') || error.message?.includes('limit exceeded')) {
+            console.log(`📊 تجاوز حصة الاستخدام - تأخير طويل`);
+            shouldRetryWithDelay = true;
+            retryDelay = 30000; // 30 seconds for quota issues
+          }
+          
+          // Retry with delay if it's a rate limit issue
+          if (shouldRetryWithDelay) {
+            console.log(`⏳ انتظار ${retryDelay/1000} ثانية قبل إعادة المحاولة...`);
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+            
+            // Retry the same batch with smaller size
+            const smallerBatchSize = Math.max(10, Math.floor(batch.length / 3));
+            console.log(`🔄 إعادة المحاولة بحجم دفعة أصغر: ${smallerBatchSize} عنصر`);
+            
+            const retryBatches = [];
+            for (let i = 0; i < batch.length; i += smallerBatchSize) {
+              retryBatches.push(batch.slice(i, i + smallerBatchSize));
+            }
+            
+            for (const retryBatch of retryBatches) {
+              const retryBatchData: Record<string, string> = {};
+              retryBatch.forEach((item: any) => {
+                retryBatchData[`item_${item.id}`] = item.cleanedText;
+              });
+              
+              try {
+                const retryResponse = await fetch('/api/translate-batch', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    batchData: retryBatchData,
+                    provider: batchProvider,
+                    model: batchModel,
+                  }),
+                });
+                
+                if (retryResponse.ok) {
+                  const retryResult = await retryResponse.json();
+                  const retryTranslations = retryResult.translations || {};
+                  
+                  for (const item of retryBatch) {
+                    const translation = retryTranslations[`item_${item.id}`];
+                    if (translation) {
+                      await onUpdateItem(item.id, {
+                        translatedText: translation.trim(),
+                        status: 'translated',
+                        translationType: 'ai-batch'
+                      });
+                      console.log(`✅ نجحت إعادة ترجمة العنصر ${item.id}`);
+                    }
+                    completed++;
+                    setTranslationProgress({ current: completed, total: itemsToTranslate.length });
+                  }
+                  
+                  // Add delay between retry batches
+                  await new Promise(resolve => setTimeout(resolve, 2000));
+                }
+              } catch (retryError) {
+                console.error(`فشل في إعادة المحاولة:`, retryError);
+                // Mark remaining items as failed
+                for (const item of retryBatch) {
+                  completed++;
+                  setTranslationProgress({ current: completed, total: itemsToTranslate.length });
+                }
+              }
+            }
+          } else {
+            // Fallback to individual translation for this batch
+            console.log(`🔄 التبديل للترجمة الفردية للدفعة ${batchInfo.batchNumber}`);
+            await translateBatchIndividually(batch, completed, itemsToTranslate.length);
+            completed += batch.length;
+          }
+          
+          // Continue to next batch
+          console.log(`➡️ المتابعة للدفعة التالية بعد معالجة ${completed}/${itemsToTranslate.length} عنصر`);
+        }
+        
+        // Enhanced delay management with multi-provider support
+        if (batchIndex < batches.length - 1) {
+          const { getOptimalDelay } = await import('@/lib/multi-provider-translator');
+          const delay = getOptimalDelay(batchProvider, batchModel, BATCH_SIZE);
+          
+          console.log(`⏳ تأخير محسن: ${delay}ms للنموذج ${batchProvider}/${batchModel}`);
+          console.log(`📊 الدفعة ${batchInfo.batchNumber}/${batches.length} - متبقي ${batches.length - batchIndex - 1} دفعات`);
+          
+          // Force continuation state to remain active during delay
+          if (window.translationControl) {
+            window.translationControl.active = true;
+            window.translationControl.paused = false;
+          }
+          
+          await new Promise(resolve => setTimeout(resolve, delay));
+          
+          // Double-check continuation state after delay
+          if (!window.translationControl?.active) {
+            console.warn('⚠️ استعادة حالة الاستمرارية بعد التأخير');
+            window.translationControl = { active: true, paused: false };
+          }
+        }
+      }
+
+      const savedCost = ((itemsToTranslate.length - batches.length) / itemsToTranslate.length * 100).toFixed(1);
+      
+      toast({
+        title: "تمت الترجمة بنجاح",
+        description: `تم ترجمة ${completed} عنصر في ${batches.length} دفعات. توفير في التكلفة: ${savedCost}%`,
+      });
+
+    } catch (error: any) {
+      toast({
+        title: "خطأ في الترجمة",
+        description: error.message || "فشل في إكمال الترجمة",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTranslating(false);
+      setTranslationProgress({ current: 0, total: 0 });
+      refetch();
+    }
+  };
+
+  // Fallback function for individual translation
+  const translateBatchIndividually = async (batch: any[], currentCompleted: number, totalItems: number) => {
+    for (const item of batch) {
+      try {
+        const response = await fetch('/api/translate-text', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: item.cleanedText,
+            provider: selectedProvider,
+            model: selectedModel,
+          }),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          let translation = result.translatedText?.trim();
+          
+          if (translation) {
+            translation = translationOptimizer.cleanTranslationResponse(translation);
+            
+            setLocalTranslations(prev => ({
+              ...prev,
+              [item.id]: translation
+            }));
+            
+            updateItemMutation.mutate({ 
+              id: item.id, 
+              updates: {
+                translatedText: translation.trim(),
+                status: 'translated'
+              }
+            });
+          }
+        }
+      } catch (error) {
+        console.error(`Individual translation error for item ${item.id}:`, error);
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+  };
+
+  // Expose control functions to parent component via props
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).translationControls = {
+        startBatchTranslation: () => {
+          if (!isTranslating) {
+            handleBatchTranslation();
+          }
+        },
+        startSelectedTranslation: () => {
+          if (!isTranslating && selectedItems.length > 0) {
+            handleBatchTranslation();
+          }
+        },
+        pauseTranslation: () => {
+          console.log('Pause requested');
+          pauseTranslation();
+        },
+        resumeTranslation: () => {
+          console.log('Resume requested');
+          resumeTranslation();
+        },
+        stopTranslation: () => {
+          console.log('Stop requested');
+          stopTranslation();
+        },
+        getStatus: () => ({
+          isTranslating,
+          isPaused,
+          progress: translationProgress,
+          selectedCount: selectedItems.length
+        })
+      };
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        delete (window as any).translationControls;
+      }
+    };
+  }, [isTranslating, isPaused, translationProgress, selectedItems.length]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p>جارٍ تحميل البيانات...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 ml-[10px] mr-[10px]">
+      {/* Statistics */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <Card>
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
+            <div className="text-sm text-gray-600">إجمالي العناصر</div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold text-orange-600">{stats.needsTranslation}</div>
+            <div className="text-sm text-gray-600">يحتاج ترجمة</div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold text-green-600">{stats.translated}</div>
+            <div className="text-sm text-gray-600">مترجم</div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold text-gray-600">{stats.noTranslationNeeded}</div>
+            <div className="text-sm text-gray-600">لا يحتاج ترجمة</div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold text-purple-600">{stats.progress}%</div>
+            <div className="text-sm text-gray-600">نسبة الإنجاز</div>
+            <Progress value={stats.progress} className="mt-2 h-2" />
+          </CardContent>
+        </Card>
+      </div>
+      {/* Controls */}
+      <div className="bg-white p-6 rounded-lg border shadow-sm space-y-4">
+        <div className="flex flex-wrap gap-4 items-center">
+          <div className="flex-1 min-w-64">
+            <Input
+              placeholder="البحث في النصوص والمفاتيح..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+
+          <Select value={filter} onValueChange={(value: FilterType) => setFilter(value)}>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">عرض الكل ({stats.total})</SelectItem>
+              <SelectItem value="needs_translation">يحتاج ترجمة ({stats.remaining})</SelectItem>
+              <SelectItem value="translated">مترجم ({stats.translated})</SelectItem>
+              <SelectItem value="no_translation_needed">لا يحتاج ترجمة ({stats.noTranslationNeeded})</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <div className="text-sm text-gray-600">
+            استخدم أزرار التحكم في القائمة الجانبية لبدء الترجمة
+          </div>
+        </div>
+
+        {/* Top Pagination */}
+        <div className="bg-gray-50 border px-6 py-3 rounded-lg">
+          <PaginationControls />
+        </div>
+
+        {isTranslating && (
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="flex items-center gap-2">
+                {isPaused ? (
+                  <>
+                    <i className="fas fa-pause text-orange-500"></i>
+                    متوقف مؤقتاً...
+                  </>
+                ) : (
+                  <>
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500"></div>
+                    جارٍ الترجمة...
+                  </>
+                )}
+              </span>
+              <span>{translationProgress.current} / {translationProgress.total}</span>
+            </div>
+            <Progress 
+              value={translationProgress.total > 0 ? (translationProgress.current / translationProgress.total) * 100 : 0} 
+              className="h-2" 
+            />
+          </div>
+        )}
+      </div>
+      {/* Table */}
+      <div className="bg-white border rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader className="bg-gray-50">
+              <TableRow>
+                <TableHead className="w-16">#</TableHead>
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={paginatedItems.length > 0 && paginatedItems.every((item: any) => selectedItems.includes(item.id))}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        // Select only items on current page
+                        const currentPageIds = paginatedItems.map((item: any) => item.id);
+                        setSelectedItems(prev => Array.from(new Set([...prev, ...currentPageIds])));
+                      } else {
+                        // Deselect only items on current page
+                        const currentPageIds = paginatedItems.map((item: any) => item.id);
+                        setSelectedItems(prev => prev.filter(id => !currentPageIds.includes(id)));
+                      }
+                    }}
+                  />
+                </TableHead>
+                <TableHead style={{ width: columnWidths.original }} className="relative border-r">
+                  النص المراد ترجمته
+                  <ResizeHandle column="original" />
+                </TableHead>
+                <TableHead style={{ width: columnWidths.translated }} className="relative border-r">
+                  الترجمة العربية
+                  <ResizeHandle column="translated" />
+                </TableHead>
+                <TableHead style={{ width: columnWidths.status }} className="relative border-r">
+                  الحالة
+                  <ResizeHandle column="status" />
+                </TableHead>
+                <TableHead style={{ width: columnWidths.actions }} className="relative">
+                  إجراءات
+                  <ResizeHandle column="actions" />
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paginatedItems.map((item: any, index: number) => (
+                <TableRow key={item.id} className="hover:bg-gray-50">
+                  <TableCell>
+                    <span className="text-gray-500 font-mono text-sm">
+                      {(page - 1) * itemsPerPage + index + 1}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedItems.includes(item.id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedItems(prev => [...prev, item.id]);
+                        } else {
+                          setSelectedItems(prev => prev.filter(id => id !== item.id));
+                        }
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <div className={`font-medium ${item.needsTranslate ? 'text-blue-700' : 'text-gray-600'}`}>
+                      {item.cleanedText}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="space-y-2">
+                      <Textarea
+                        value={localTranslations[item.id] || item.translatedText || ''}
+                        onChange={(e) => {
+                          const newValue = e.target.value;
+                          
+                          // Update local translations immediately
+                          setLocalTranslations(prev => ({
+                            ...prev,
+                            [item.id]: newValue
+                          }));
+                          
+                          // Update the query cache for consistency
+                          queryClient.setQueryData(['/api/projects', projectId, 'items'], (oldData: any) => {
+                            if (!oldData) return oldData;
+                            return oldData.map((oldItem: any) => 
+                              oldItem.id === item.id 
+                                ? { ...oldItem, translatedText: newValue, status: newValue.trim() ? 'translated' : 'needs_translation' }
+                                : oldItem
+                            );
+                          });
+                        }}
+                        onBlur={(e) => {
+                          const newValue = e.target.value;
+                          // Debounced save to reduce server requests
+                          translationOptimizer.debouncedSave(item.id, () => {
+                            updateItemMutation.mutate({ 
+                              id: item.id, 
+                              updates: {
+                                translatedText: newValue,
+                                status: newValue.trim() ? 'translated' : 'needs_translation'
+                              }
+                            });
+                          }, 1000);
+                        }}
+                        placeholder={item.needsTranslate ? "اكتب الترجمة..." : "لا يحتاج ترجمة"}
+                        className="min-h-[60px] text-sm"
+                        dir="rtl"
+                        disabled={!item.needsTranslate}
+                      />
+                      
+
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={
+                      item.translatedText?.trim() ? 'default' : 
+                      item.needsTranslate ? 'destructive' : 'secondary'
+                    }>
+                      {item.translatedText?.trim() ? 'مترجم' : 
+                       item.needsTranslate ? 'غير مترجم' : 'لا يحتاج'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center space-x-2 space-x-reverse">
+                      {item.needsTranslate && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={async () => {
+                              // Save current translation as chat history
+                              if (item.translatedText?.trim()) {
+                                const chatHistory = {
+                                  original: item.originalText,
+                                  translated: item.translatedText,
+                                  timestamp: new Date().toISOString(),
+                                  model: selectedModel,
+                                  provider: selectedProvider
+                                };
+                                
+                                // Store in localStorage for persistence
+                                const existingHistory = JSON.parse(localStorage.getItem('translationHistory') || '[]');
+                                existingHistory.push(chatHistory);
+                                localStorage.setItem('translationHistory', JSON.stringify(existingHistory.slice(-100))); // Keep last 100
+                                
+                                toast({
+                                  title: "تم حفظ الدردشة",
+                                  description: "تم حفظ الترجمة في سجل الدردشة"
+                                });
+                                return;
+                              }
+                              
+                            try {
+                              // Check cache first
+                              const cachedTranslation = translationOptimizer.getCachedTranslation(item.cleanedText);
+                              if (cachedTranslation && !item.translatedText) {
+                                // Use cached translation - force immediate update
+                                const updatedData = queryClient.getQueryData(['/api/projects', projectId, 'items']) as any[];
+                                if (updatedData) {
+                                  const newData = updatedData.map((oldItem: any) => 
+                                    oldItem.id === item.id 
+                                      ? { ...oldItem, translatedText: cachedTranslation, status: 'translated' }
+                                      : oldItem
+                                  );
+                                  queryClient.setQueryData(['/api/projects', projectId, 'items'], newData);
+                                  queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'items'] });
+                                }
+                                
+                                updateItemMutation.mutate({ 
+                                  id: item.id, 
+                                  updates: { translatedText: cachedTranslation, status: 'translated' }
+                                });
+                                
+                                toast({
+                                  title: "تمت الترجمة من الذاكرة المؤقتة",
+                                  description: cachedTranslation,
+                                });
+                                return;
+                              }
+                              
+                              // Create optimized prompt
+                              const currentTranslation = item.translatedText?.trim() || '';
+                              const attemptIndex = currentTranslation ? 
+                                Math.floor(Math.random() * 5) : 0;
+                              
+                              const promptText = translationOptimizer.createOptimizedPrompt(item.cleanedText, attemptIndex);
+                              
+                              // Track performance
+                              performanceMonitor.trackRequest('/api/translate-text');
+                              
+                              // Get the suggested model from global settings
+                              const suggestedModel = globalSettings?.find((s: any) => s.settingKey === 'manualTranslationModel')?.settingValue || selectedModel;
+                              
+                              const response = await fetch('/api/translate-text', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  text: promptText,
+                                  provider: selectedProvider,
+                                  model: suggestedModel,
+                                }),
+                              });
+
+                              if (!response.ok) {
+                                performanceMonitor.trackRequest('/api/translate-text', false);
+                                throw new Error('فشل في الترجمة');
+                              }
+                              
+                              const result = await response.json();
+                              let translation = result.translatedText?.trim();
+                              
+                              if (translation) {
+                                // Advanced cleaning for Gemini responses that include the prompt
+                                // Handle pattern: "ترجم إلى العربية: الترجمة المطلوبة"
+                                if (translation.includes('ترجم إلى العربية:')) {
+                                  translation = translation.split('ترجم إلى العربية:')[1]?.trim() || translation;
+                                }
+                                
+                                // Handle pattern: "Translate to Arabic: النص المترجم"
+                                if (translation.includes('Translate to Arabic:')) {
+                                  translation = translation.split('Translate to Arabic:')[1]?.trim() || translation;
+                                }
+                                
+                                // Remove any remaining English prefixes
+                                translation = translation.replace(/^[a-zA-Z\s:]+/, '').trim();
+                                
+                                // Clean up using optimizer as final step
+                                translation = translationOptimizer.cleanTranslationResponse(translation);
+                                
+                                // Cache the translation for future use
+                                translationOptimizer.setCachedTranslation(item.cleanedText, translation);
+                                
+                                // Update local state immediately for instant UI feedback
+                                setLocalTranslations(prev => ({
+                                  ...prev,
+                                  [item.id]: translation
+                                }));
+                                
+                                // Update query cache
+                                queryClient.setQueryData(['/api/projects', projectId, 'items'], (oldData: any) => {
+                                  if (!oldData) return oldData;
+                                  return oldData.map((oldItem: any) => 
+                                    oldItem.id === item.id 
+                                      ? { ...oldItem, translatedText: translation, status: 'translated' }
+                                      : oldItem
+                                  );
+                                });
+                                
+                                // Debounced save to reduce server requests
+                                translationOptimizer.debouncedSave(item.id, () => {
+                                  updateItemMutation.mutate({ 
+                                    id: item.id, 
+                                    updates: {
+                                      translatedText: translation,
+                                      status: 'translated'
+                                    }
+                                  });
+                                }, 1500);
+                                
+                                toast({
+                                  title: "تمت الترجمة",
+                                  description: translation,
+                                });
+                              } else {
+                                throw new Error('لم يتم الحصول على ترجمة');
+                              }
+                            } catch (error) {
+                              console.error('Translation error:', error);
+                              toast({
+                                title: "خطأ في الترجمة",
+                                description: `فشل في ترجمة: ${item.cleanedText}`,
+                                variant: "destructive",
+                              });
+                            }
+                          }}
+                          title="ترجمة يدوية"
+                          className="h-8 px-2"
+                        >
+                          <i className="fas fa-language text-sm"></i>
+                        </Button>
+                        
+                        {/* زر استرداد الدردشة السابقة */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            const history = JSON.parse(localStorage.getItem('translationHistory') || '[]');
+                            const relevantHistory = history.filter((h: any) => 
+                              h.original.toLowerCase().includes(item.originalText.toLowerCase().substring(0, 10)) ||
+                              item.originalText.toLowerCase().includes(h.original.toLowerCase().substring(0, 10))
+                            );
+                            
+                            if (relevantHistory.length > 0) {
+                              const lastTranslation = relevantHistory[relevantHistory.length - 1];
+                              
+                              // Update the item with saved translation
+                              const updatedData = queryClient.getQueryData(['/api/projects', projectId, 'items']) as any[];
+                              if (updatedData) {
+                                const newData = updatedData.map((oldItem: any) => 
+                                  oldItem.id === item.id 
+                                    ? { ...oldItem, translatedText: lastTranslation.translated, status: 'translated' }
+                                    : oldItem
+                                );
+                                queryClient.setQueryData(['/api/projects', projectId, 'items'], newData);
+                              }
+                              
+                              updateItemMutation.mutate({ 
+                                id: item.id, 
+                                updates: { translatedText: lastTranslation.translated, status: 'translated' }
+                              });
+                              
+                              toast({
+                                title: "تم استرداد الدردشة",
+                                description: `استرداد ترجمة من ${new Date(lastTranslation.timestamp).toLocaleString('ar')}`
+                              });
+                            } else {
+                              toast({
+                                title: "لا توجد دردشة محفوظة",
+                                description: "لا توجد ترجمات محفوظة لهذا النص",
+                                variant: "destructive"
+                              });
+                            }
+                          }}
+                          title="استرداد الدردشة السابقة"
+                          className="h-8 px-2"
+                        >
+                          <i className="fas fa-history text-sm"></i>
+                        </Button>
+                        
+                        <MultipleTranslationsDropdown 
+                          item={item}
+                          selectedProvider={selectedProvider}
+                          selectedModel={selectedModel}
+                          multipleTranslationModel={multipleTranslationModel}
+                          onSelectTranslation={(translation) => {
+                            // Update local state immediately
+                            setLocalTranslations(prev => ({
+                              ...prev,
+                              [item.id]: translation
+                            }));
+                            
+                            // Update query cache
+                            queryClient.setQueryData(['/api/projects', projectId, 'items'], (oldData: any) => {
+                              if (!oldData) return oldData;
+                              return oldData.map((oldItem: any) => 
+                                oldItem.id === item.id 
+                                  ? { ...oldItem, translatedText: translation, status: 'translated' }
+                                  : oldItem
+                              );
+                            });
+                            
+                            // Save to server
+                            updateItemMutation.mutate({ 
+                              id: item.id, 
+                              updates: {
+                                translatedText: translation,
+                                status: 'translated'
+                              }
+                            });
+                            
+                            toast({
+                              title: "تم حفظ الترجمة",
+                              description: translation,
+                            });
+                          }}
+                        />
+                      </>)}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* Bottom Pagination */}
+        <div className="bg-gray-50 border-t px-6 py-4">
+          <PaginationControls />
+        </div>
+      </div>
+    </div>
+  );
+}
+

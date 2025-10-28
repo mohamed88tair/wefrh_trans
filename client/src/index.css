@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 220 13% 98%; /* #F9FAFB */
+  --foreground: 220 9% 15%; /* #374151 */
+  --muted: 220 13% 95%; /* #F3F4F6 */
+  --muted-foreground: 220 9% 46%; /* #6B7280 */
+  --popover: 0 0% 100%; /* #FFFFFF */
+  --popover-foreground: 220 9% 15%; /* #374151 */
+  --card: 0 0% 100%; /* #FFFFFF */
+  --card-foreground: 220 9% 15%; /* #374151 */
+  --border: 220 13% 91%; /* #E5E7EB */
+  --input: 220 13% 91%; /* #E5E7EB */
+  --primary: 207 90% 54%; /* #1976D2 */
+  --primary-foreground: 0 0% 98%; /* #FAFAFA */
+  --secondary: 220 9% 26%; /* #424242 */
+  --secondary-foreground: 0 0% 98%; /* #FAFAFA */
+  --accent: 122 70% 45%; /* #4CAF50 */
+  --accent-foreground: 0 0% 98%; /* #FAFAFA */
+  --destructive: 0 84% 60%; /* #F44336 */
+  --destructive-foreground: 0 0% 98%; /* #FAFAFA */
+  --warning: 36 100% 50%; /* #FF9800 */
+  --warning-foreground: 0 0% 98%; /* #FAFAFA */
+  --ring: 207 90% 54%; /* #1976D2 */
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: 220 13% 9%; /* #1F2937 */
+  --foreground: 220 13% 91%; /* #E5E7EB */
+  --muted: 220 13% 15%; /* #374151 */
+  --muted-foreground: 220 9% 64%; /* #9CA3AF */
+  --popover: 220 13% 9%; /* #1F2937 */
+  --popover-foreground: 220 13% 91%; /* #E5E7EB */
+  --card: 220 13% 9%; /* #1F2937 */
+  --card-foreground: 220 13% 91%; /* #E5E7EB */
+  --border: 220 13% 15%; /* #374151 */
+  --input: 220 13% 15%; /* #374151 */
+  --primary: 207 90% 54%; /* #1976D2 */
+  --primary-foreground: 0 0% 98%; /* #FAFAFA */
+  --secondary: 220 9% 26%; /* #424242 */
+  --secondary-foreground: 0 0% 98%; /* #FAFAFA */
+  --accent: 122 70% 45%; /* #4CAF50 */
+  --accent-foreground: 0 0% 98%; /* #FAFAFA */
+  --destructive: 0 84% 60%; /* #F44336 */
+  --destructive-foreground: 0 0% 98%; /* #FAFAFA */
+  --warning: 36 100% 50%; /* #FF9800 */
+  --warning-foreground: 0 0% 98%; /* #FAFAFA */
+  --ring: 207 90% 54%; /* #1976D2 */
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    font-family: 'Tajawal', 'Cairo', 'Arial', sans-serif;
+    direction: rtl;
+  }
+
+  .font-arabic {
+    font-family: 'Tajawal', 'Cairo', 'Arial', sans-serif;
+  }
+}
+
+@layer utilities {
+  .text-warning {
+    color: hsl(var(--warning));
+  }
+  
+  .bg-warning {
+    background-color: hsl(var(--warning));
+  }
+  
+  .border-warning {
+    border-color: hsl(var(--warning));
+  }
+}
