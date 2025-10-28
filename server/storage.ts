@@ -1,14 +1,16 @@
-import { 
-  users, 
-  translationProjects, 
-  translationItems, 
+import { db } from "./db";
+import { eq, count, sql } from "drizzle-orm";
+import {
+  users,
+  translationProjects,
+  translationItems,
   apiSettings,
   globalSettings,
   projectSettings,
   backgroundTasks,
   aiModels,
   usageStats,
-  type User, 
+  type User,
   type InsertUser,
   type TranslationProject,
   type InsertTranslationProject,
@@ -77,10 +79,9 @@ export interface IStorage {
   deleteBackgroundTask(id: string): Promise<void>;
   
   // Project Settings
-  getProjectSetting(projectId: number, key: string): Promise<ProjectSettings | undefined>;
-  setProjectSetting(projectId: number, key: string, value: string): Promise<ProjectSettings>;
-  getAllProjectSettings(projectId: number): Promise<ProjectSettings[]>;
-  deleteProjectSetting(projectId: number, key: string): Promise<void>;
+  getProjectSettings(projectId: number): Promise<ProjectSettings | undefined>;
+  createProjectSettings(settings: InsertProjectSettings): Promise<ProjectSettings>;
+  updateProjectSettings(projectId: number, updates: Partial<ProjectSettings>): Promise<ProjectSettings>;
   
   // Chat History
   getChatHistory(projectId: number): Promise<any[]>;
@@ -263,17 +264,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUntranslatedItems(projectId: number, limit?: number): Promise<TranslationItem[]> {
-    let query = db
+    const query = db
       .select()
       .from(translationItems)
-      .where(eq(translationItems.projectId, projectId))
-      .where(eq(translationItems.status, 'untranslated'))
+      .where(sql`${translationItems.projectId} = ${projectId} AND ${translationItems.status} = 'untranslated'`)
       .orderBy(translationItems.id);
-    
+
     if (limit) {
-      query = query.limit(limit);
+      return await query.limit(limit);
     }
-    
+
     return await query;
   }
 
@@ -421,46 +421,34 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Project Settings Implementation
-  async getProjectSetting(projectId: number, key: string): Promise<ProjectSettings | undefined> {
-    const [setting] = await db
-      .select()
-      .from(projectSettings)
-      .where(eq(projectSettings.projectId, projectId))
-      .where(eq(projectSettings.settingKey, key));
-    return setting || undefined;
-  }
-
-  async setProjectSetting(projectId: number, key: string, value: string): Promise<ProjectSettings> {
-    const existingSetting = await this.getProjectSetting(projectId, key);
-    
-    if (existingSetting) {
-      const [updated] = await db
-        .update(projectSettings)
-        .set({ settingValue: value, updatedAt: new Date() })
-        .where(eq(projectSettings.id, existingSetting.id))
-        .returning();
-      return updated;
-    } else {
-      const [newSetting] = await db
-        .insert(projectSettings)
-        .values({ projectId, settingKey: key, settingValue: value })
-        .returning();
-      return newSetting;
-    }
-  }
-
-  async getAllProjectSettings(projectId: number): Promise<ProjectSettings[]> {
-    return await db
+  async getProjectSettings(projectId: number): Promise<ProjectSettings | undefined> {
+    const [settings] = await db
       .select()
       .from(projectSettings)
       .where(eq(projectSettings.projectId, projectId));
+    return settings || undefined;
   }
 
-  async deleteProjectSetting(projectId: number, key: string): Promise<void> {
-    await db
-      .delete(projectSettings)
+  async createProjectSettings(settings: InsertProjectSettings): Promise<ProjectSettings> {
+    const [newSettings] = await db
+      .insert(projectSettings)
+      .values(settings)
+      .returning();
+    return newSettings;
+  }
+
+  async updateProjectSettings(projectId: number, updates: Partial<ProjectSettings>): Promise<ProjectSettings> {
+    const [updated] = await db
+      .update(projectSettings)
+      .set({ ...updates, updatedAt: new Date() })
       .where(eq(projectSettings.projectId, projectId))
-      .where(eq(projectSettings.settingKey, key));
+      .returning();
+
+    if (!updated) {
+      throw new Error(`Project settings for project ${projectId} not found`);
+    }
+
+    return updated;
   }
 
   async getChatHistory(projectId: number): Promise<any[]> {
