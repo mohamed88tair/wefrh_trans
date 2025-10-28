@@ -1,0 +1,98 @@
+السجلات المباشرة (17)
+آخر تحديث: 4 يونيو 2025, 14:02:02
+error
+ai-cost
+AI
+13:59:04
+gemini gpt-4o failed: 404: { "error": { "code": 404, "message": "models/gpt-4o is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.", "status": "NOT_FOUND" } }
+عرض التفاصيل التقنية
+error
+api
+13:59:04
+POST /api/translate-text failed
+عرض التفاصيل التقنية
+error
+ai-cost
+AI
+13:59:04
+gemini gpt-4o failed: Gemini API error: 404 - { "error": { "code": 404, "message": "models/gpt-4o is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.", "status": "NOT_FOUND" } }
+عرض التفاصيل التقنية
+error
+ai-cost
+AI
+13:59:03
+gemini gpt-4o failed: 404: { "error": { "code": 404, "message": "models/gpt-4o is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.", "status": "NOT_FOUND" } }
+عرض التفاصيل التقنية
+error
+api
+13:59:03
+POST /api/translate-text failed
+عرض التفاصيل التقنية
+error
+ai-cost
+AI
+13:59:03
+gemini gpt-4o failed: Gemini API error: 404 - { "error": { "code": 404, "message": "models/gpt-4o is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.", "status": "NOT_FOUND" } }
+عرض التفاصيل التقنية
+error
+ai-cost
+AI
+13:59:03
+gemini gpt-4o failed: 404: { "error": { "code": 404, "message": "models/gpt-4o is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.", "status": "NOT_FOUND" } }
+عرض التفاصيل التقنية
+error
+ai-cost
+AI
+13:59:03
+gemini gpt-4o failed: Gemini API error: 404 - { "error": { "code": 404, "message": "models/gpt-4o is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.", "status": "NOT_FOUND" } }
+عرض التفاصيل التقنية
+error
+api
+13:59:03
+POST /api/translate-text failed
+عرض التفاصيل التقنية
+error
+ai-cost
+AI
+13:59:02
+gemini gpt-4o failed: 404: { "error": { "code": 404, "message": "models/gpt-4o is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.", "status": "NOT_FOUND" } }
+عرض التفاصيل التقنية
+error
+api
+13:59:02
+POST /api/translate-text failed
+عرض التفاصيل التقنية
+error
+ai-cost
+AI
+13:59:02
+gemini gpt-4o failed: Gemini API error: 404 - { "error": { "code": 404, "message": "models/gpt-4o is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.", "status": "NOT_FOUND" } }
+عرض التفاصيل التقنية
+error
+ai-cost
+AI
+13:59:01
+gemini gpt-4o failed: 404: { "error": { "code": 404, "message": "models/gpt-4o is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.", "status": "NOT_FOUND" } }
+عرض التفاصيل التقنية
+error
+api
+13:59:01
+POST /api/translate-text failed
+عرض التفاصيل التقنية
+error
+ai-cost
+AI
+13:59:01
+gemini gpt-4o failed: Gemini API error: 404 - { "error": { "code": 404, "message": "models/gpt-4o is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.", "status": "NOT_FOUND" } }
+عرض التفاصيل التقنية
+error
+ai-cost
+AI
+13:59:01
+gemini gpt-4o failed: 404: { "error": { "code": 404, "message": "models/gpt-4o is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.", "status": "NOT_FOUND" } }
+عرض التفاصيل التقنية
+error
+api
+13:59:01
+POST /api/translate-text failed
+عرض التفاصيل التقنية

@@ -1,0 +1,105 @@
+Replit version 723c5ee6, pid2 version 0.0.1359
+_app-60c1bfc66a8d5374.js:38 
+      /////////////////////
+   ///////////////////////////
+  ////////@@@@@@@//////////////
+  ////////@@@@@@@//////////////
+  ////////@@@@@@@//////////////        Curious and driven?
+  ///////////////@@@@@@@///////        Work with us!
+  ///////////////@@@@@@@///////
+  ///////////////@@@@@@@///////        https://join.replit.com/hack.with.us
+  ////////@@@@@@@//////////////
+  ////////@@@@@@@//////////////
+  ////////@@@@@@#//////////////
+   ///////////////////////////
+      /////////////////////
+      
+_app-60c1bfc66a8d5374.js:38 [LaunchDarkly] LaunchDarkly client initialized
+googleads.g.doubleclick.net/pagead/viewthroughconversion/11411994397/?random=1748944423766&cv=11&fst=1748944423766&bg=ffffff&guid=ON&async=1&gtm=45be55u1h1v9171242957za200&gcd=13l3l3l3l1l1&dma=0&tag_exp=101509157~103116026~103200004~103233427~103351869~103351871&u_w=1536&u_h=864&url=https%3A%2F%2Freplit.com%2F%40it325%2FPerformanceTranslator&ref=https%3A%2F%2Freplit.com%2F%40it325%2FPerformanceTranslator&hn=www.googleadservices.com&frm=0&tiba=PerformanceTranslator%20-%20Replit&npa=0&pscdl=noapi&auid=577104217.1748849349&fledge=1&data=event%3Dgtag.config&rfmt=3&fmt=4:1 
+            
+            
+           Failed to load resource: net::ERR_BLOCKED_BY_CLIENTUnderstand this error
+stats.g.doubleclick.net/j/collect?t=dc&aip=1&_r=3&v=1&_v=j101&tid=UA-25629695-1&cid=817029864.1748849349&jid=805362561&gjid=1092826185&_gid=1020946719.1748849349&_u=SCCAgEAjQAAAAGgCIAD~&z=1062883996:1 
+            
+            
+           Failed to load resource: net::ERR_BLOCKED_BY_CLIENTUnderstand this error
+5[Intervention] Slow network is detected. See <URL> for more details. Fallback font will be used while loading: <URL>
+PerformanceTranslator:1 Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner.
+framework-2bcfc913b3383f64.js:1 Error while parsing the 'sandbox' attribute: 'allow-downloads-without-user-activation' is an invalid sandbox flag.
+_ @ framework-2bcfc913b3383f64.js:1Understand this error
+framework-2bcfc913b3383f64.js:1 Unrecognized feature: 'ambient-light-sensor'.
+_ @ framework-2bcfc913b3383f64.js:1Understand this warning
+framework-2bcfc913b3383f64.js:1 Unrecognized feature: 'battery'.
+_ @ framework-2bcfc913b3383f64.js:1Understand this warning
+framework-2bcfc913b3383f64.js:1 Unrecognized feature: 'execution-while-not-rendered'.
+_ @ framework-2bcfc913b3383f64.js:1Understand this warning
+framework-2bcfc913b3383f64.js:1 Unrecognized feature: 'execution-while-out-of-viewport'.
+_ @ framework-2bcfc913b3383f64.js:1Understand this warning
+framework-2bcfc913b3383f64.js:1 Unrecognized feature: 'layout-animations'.
+_ @ framework-2bcfc913b3383f64.js:1Understand this warning
+framework-2bcfc913b3383f64.js:1 Unrecognized feature: 'legacy-image-formats'.
+_ @ framework-2bcfc913b3383f64.js:1Understand this warning
+framework-2bcfc913b3383f64.js:1 Unrecognized feature: 'navigation-override'.
+_ @ framework-2bcfc913b3383f64.js:1Understand this warning
+framework-2bcfc913b3383f64.js:1 Unrecognized feature: 'oversized-images'.
+_ @ framework-2bcfc913b3383f64.js:1Understand this warning
+framework-2bcfc913b3383f64.js:1 Unrecognized feature: 'publickey-credentials'.
+_ @ framework-2bcfc913b3383f64.js:1Understand this warning
+framework-2bcfc913b3383f64.js:1 Unrecognized feature: 'speaker-selection'.
+_ @ framework-2bcfc913b3383f64.js:1Understand this warning
+framework-2bcfc913b3383f64.js:1 Unrecognized feature: 'unoptimized-images'.
+_ @ framework-2bcfc913b3383f64.js:1Understand this warning
+framework-2bcfc913b3383f64.js:1 Unrecognized feature: 'unsized-media'.
+_ @ framework-2bcfc913b3383f64.js:1Understand this warning
+framework-2bcfc913b3383f64.js:1 Unrecognized feature: 'pointer-lock'.
+_ @ framework-2bcfc913b3383f64.js:1Understand this warning
+framework-2bcfc913b3383f64.js:1 Allow attribute will take precedence over 'allowfullscreen'.
+_ @ framework-2bcfc913b3383f64.js:1Understand this warning
+framework-2bcfc913b3383f64.js:1 Allow attribute will take precedence over 'allowpaymentrequest'.
+_ @ framework-2bcfc913b3383f64.js:1Understand this warning
+stats.g.doubleclick.net/j/collect?t=dc&aip=1&_r=3&v=1&_v=j101&tid=UA-25629695-1&cid=817029864.1748849349&jid=1262106366&gjid=507461697&_gid=1020946719.1748849349&_u=SCCAgEAjQAAAAGgCIAD~&z=12681847:1 
+            
+            
+           Failed to load resource: net::ERR_BLOCKED_BY_CLIENTUnderstand this error
+framework-2bcfc913b3383f64.js:1 Error while parsing the 'sandbox' attribute: 'allow-downloads-without-user-activation' is an invalid sandbox flag.
+_ @ framework-2bcfc913b3383f64.js:1Understand this error
+framework-2bcfc913b3383f64.js:1 Error while parsing the 'sandbox' attribute: 'allow-downloads-without-user-activation' is an invalid sandbox flag.
+_ @ framework-2bcfc913b3383f64.js:1Understand this error
+workspace_iframe.html:32 Error while parsing the 'sandbox' attribute: 'allow-downloads-without-user-activation' is an invalid sandbox flag.Understand this error
+workspace_iframe.html:32 Unrecognized feature: 'ambient-light-sensor'.Understand this warning
+workspace_iframe.html:32 Unrecognized feature: 'battery'.Understand this warning
+workspace_iframe.html:32 Unrecognized feature: 'execution-while-not-rendered'.Understand this warning
+workspace_iframe.html:32 Unrecognized feature: 'execution-while-out-of-viewport'.Understand this warning
+workspace_iframe.html:32 Unrecognized feature: 'layout-animations'.Understand this warning
+workspace_iframe.html:32 Unrecognized feature: 'legacy-image-formats'.Understand this warning
+workspace_iframe.html:32 Unrecognized feature: 'navigation-override'.Understand this warning
+workspace_iframe.html:32 Unrecognized feature: 'oversized-images'.Understand this warning
+workspace_iframe.html:32 Unrecognized feature: 'publickey-credentials'.Understand this warning
+workspace_iframe.html:32 Unrecognized feature: 'speaker-selection'.Understand this warning
+workspace_iframe.html:32 Unrecognized feature: 'unoptimized-images'.Understand this warning
+workspace_iframe.html:32 Unrecognized feature: 'unsized-media'.Understand this warning
+workspace_iframe.html:32 Allow attribute will take precedence over 'allowfullscreen'.Understand this warning
+workspace_iframe.html:32 Allow attribute will take precedence over 'allowpaymentrequest'.Understand this warning
+Console.js:61 Component state - items: 0 isLoading: true projectId: 9
+Console.js:61 processedItems: No items to process
+Console.js:61 Fetched 7516 items from server
+Console.js:61 Component state - items: 7516 isLoading: false projectId: 9
+Console.js:61 Processing 7516 items
+Console.js:61 handleBatchTranslation called - using optimized batching
+Console.js:61 Available items: 0
+Console.js:61 processedItems: 0
+Console.js:61 No items available for translation
+Mt.forEach.n.<computed> @ Console.js:61Understand this error
+Console.js:61 handleBatchTranslation called - using optimized batching
+Console.js:61 Available items: 0
+Console.js:61 processedItems: 0
+Console.js:61 No items available for translation
+Mt.forEach.n.<computed> @ Console.js:61Understand this error
+2Console.js:61 Component state - items: 7516 isLoading: false projectId: 9
+
+                
+          
+          
+          
+         Chrome is moving towards a new experience that allows users to choose to browse without third-party cookies.Understand this warning
+stallwart.build.js:1 stallwart: failed ping 1
