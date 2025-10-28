@@ -1,6 +1,5 @@
-import { db } from "./db";
-import { systemLogs, type InsertSystemLog } from "@shared/schema";
-import { eq, desc, count, and } from "drizzle-orm";
+import { supabase } from "./supabase";
+import type { InsertSystemLog, SystemLog } from "@shared/schema";
 
 interface LogEntry {
   id: string;
@@ -55,27 +54,28 @@ class SystemLogger {
   }
 
   private async saveToDatabase(logEntry: LogEntry) {
-    const dbLog: InsertSystemLog = {
-      logId: logEntry.id,
+    const dbLog: any = {
+      log_id: logEntry.id,
       level: logEntry.level,
       category: logEntry.category,
       message: logEntry.message,
       details: logEntry.details,
-      projectId: logEntry.projectId,
-      projectName: logEntry.projectName,
+      project_id: logEntry.projectId,
+      project_name: logEntry.projectName,
       endpoint: logEntry.endpoint,
-      statusCode: logEntry.statusCode,
-      aiModel: logEntry.aiModel,
-      aiProvider: logEntry.aiProvider,
-      inputTokens: logEntry.inputTokens,
-      outputTokens: logEntry.outputTokens,
-      totalTokens: logEntry.totalTokens,
-      estimatedCost: logEntry.estimatedCost ? logEntry.estimatedCost.toString() : null,
+      status_code: logEntry.statusCode,
+      ai_model: logEntry.aiModel,
+      ai_provider: logEntry.aiProvider,
+      input_tokens: logEntry.inputTokens,
+      output_tokens: logEntry.outputTokens,
+      total_tokens: logEntry.totalTokens,
+      estimated_cost: logEntry.estimatedCost ? logEntry.estimatedCost.toString() : null,
       currency: logEntry.currency,
       duration: logEntry.duration,
+      timestamp: new Date().toISOString()
     };
 
-    await db.insert(systemLogs).values(dbLog);
+    await supabase.from('system_logs').insert(dbLog);
   }
 
   // Get logs from database with pagination and filtering
@@ -85,35 +85,34 @@ class SystemLogger {
     level?: string;
     category?: string;
     projectId?: number;
-  } = {}) {
+  } = {}): Promise<SystemLog[]> {
     try {
       const { limit = 50, offset = 0, level, category, projectId } = options;
-      
-      // Build query with proper typing
-      const whereConditions: any[] = [];
-      
+
+      let query = supabase
+        .from('system_logs')
+        .select('*');
+
       if (level && level !== 'all') {
-        whereConditions.push(eq(systemLogs.level, level));
+        query = query.eq('level', level);
       }
       if (category && category !== 'all') {
-        whereConditions.push(eq(systemLogs.category, category));
+        query = query.eq('category', category);
       }
       if (projectId) {
-        whereConditions.push(eq(systemLogs.projectId, projectId));
+        query = query.eq('project_id', projectId);
       }
-      
-      let query = db.select().from(systemLogs);
-      
-      if (whereConditions.length > 0) {
-        query = query.where(and(...whereConditions));
+
+      const { data, error } = await query
+        .order('timestamp', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (error) {
+        console.error('Failed to fetch logs from database:', error);
+        return [];
       }
-      
-      const logs = await query
-        .orderBy(desc(systemLogs.timestamp))
-        .limit(limit)
-        .offset(offset);
-        
-      return logs;
+
+      return data || [];
     } catch (error) {
       console.error('Failed to fetch logs from database:', error);
       return [];
@@ -123,18 +122,36 @@ class SystemLogger {
   // Get stats from database
   async getStatsFromDB() {
     try {
-      const totalResult = await db.select({ count: count() }).from(systemLogs);
-      const errorResult = await db.select({ count: count() }).from(systemLogs).where(eq(systemLogs.level, 'error'));
-      const warningResult = await db.select({ count: count() }).from(systemLogs).where(eq(systemLogs.level, 'warning'));
-      const successResult = await db.select({ count: count() }).from(systemLogs).where(eq(systemLogs.level, 'success'));
-      const infoResult = await db.select({ count: count() }).from(systemLogs).where(eq(systemLogs.level, 'info'));
+      const { count: total, error: totalError } = await supabase
+        .from('system_logs')
+        .select('*', { count: 'exact', head: true });
+
+      const { count: errors, error: errorsError } = await supabase
+        .from('system_logs')
+        .select('*', { count: 'exact', head: true })
+        .eq('level', 'error');
+
+      const { count: warnings, error: warningsError } = await supabase
+        .from('system_logs')
+        .select('*', { count: 'exact', head: true })
+        .eq('level', 'warning');
+
+      const { count: success, error: successError } = await supabase
+        .from('system_logs')
+        .select('*', { count: 'exact', head: true })
+        .eq('level', 'success');
+
+      const { count: info, error: infoError } = await supabase
+        .from('system_logs')
+        .select('*', { count: 'exact', head: true })
+        .eq('level', 'info');
 
       return {
-        total: totalResult[0]?.count || 0,
-        errors: errorResult[0]?.count || 0,
-        warnings: warningResult[0]?.count || 0,
-        success: successResult[0]?.count || 0,
-        info: infoResult[0]?.count || 0
+        total: total || 0,
+        errors: errors || 0,
+        warnings: warnings || 0,
+        success: success || 0,
+        info: info || 0
       };
     } catch (error) {
       console.error('Failed to get stats from database:', error);
@@ -163,7 +180,7 @@ class SystemLogger {
 
   async clearAllLogs() {
     try {
-      await db.delete(systemLogs);
+      await supabase.from('system_logs').delete().neq('id', 0);
       this.logs = [];
       console.log('All logs cleared from database and memory');
     } catch (error) {
